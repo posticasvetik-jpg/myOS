@@ -1,0 +1,50 @@
+name: Build ISO
+
+on:
+  workflow_dispatch:      # ручной запуск кнопкой "Run workflow"
+  push:
+    branches: [main]
+    paths: [build-myos.sh]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Build ISO in Debian 12 container
+        run: |
+          docker run --rm --privileged \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e BUILD_DIR=/work/myos-build \
+            -v "$PWD":/work -w /work \
+            debian:bookworm \
+            bash ./build-myos.sh
+
+      - name: Show result
+        run: ls -lh myos-build/*.iso
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: myos-iso
+          path: myos-build/*.iso
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: myos-build/build.log
+          if-no-files-found: ignore
